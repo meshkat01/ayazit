@@ -1,5 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 
 
 void main() {
@@ -27,11 +32,17 @@ class WebViewDemo extends StatefulWidget {
 
 class _WebViewDemoState extends State<WebViewDemo> {
 
-  WebViewController controller = WebViewController();
-  late WebViewController _webViewController;
+  late WebViewController controller;
+  late StreamSubscription subscription;
+  bool isDeviceConnected = false;
+  bool isAlertSet = false;
+
+
+
   @override
   void initState()
   {
+    getConnectivity();
     super.initState();
 
     controller = WebViewController()
@@ -47,28 +58,66 @@ class _WebViewDemoState extends State<WebViewDemo> {
       ..loadRequest(Uri.parse('https://ayazit.com'));
 
   }
+
+  getConnectivity() =>
+      subscription = Connectivity().onConnectivityChanged.listen(
+            (ConnectivityResult result) async {
+          isDeviceConnected = await InternetConnectionChecker().hasConnection;
+          if (!isDeviceConnected && isAlertSet == false) {
+            showDialogBox();
+            setState(() => isAlertSet = true);
+          }
+        },
+      );
+
+  @override
+  void dispose() {
+    subscription.cancel();
+    super.dispose();
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: WillPopScope(
-          onWillPop: () async {
-            if( await _webViewController.canGoBack()){
-              _webViewController.goBack();
-              return false;
-            }else{
-              return true;
-            }
-          },
 
-          child: WebViewWidget(
-            controller: controller,
-          ),
-
-          onWebViewCreated: (WebViewController controller) {
-            _webViewController = controller;
-          }
-      ),
+    return  WillPopScope(
+      onWillPop: () async {
+        if( await controller.canGoBack()){
+          controller.goBack();
+          return false;
+        }else{
+          return true;
+        }
+      },
+      child: Scaffold(
+        body: WebViewWidget(
+              controller: controller,
+            ),
+        ),
     );
   }
+
+  showDialogBox() => showCupertinoDialog<String>(
+    context: context,
+    builder: (BuildContext context) => CupertinoAlertDialog(
+      title: const Text('No Internet'),
+      content: const Text('Please check your internet connectivity'),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context, 'Cancel');
+            setState(() => isAlertSet = false);
+            isDeviceConnected =
+            await InternetConnectionChecker().hasConnection;
+            if (!isDeviceConnected && isAlertSet == false) {
+              showDialogBox();
+              setState(() => isAlertSet = true);
+            }
+          },
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 }
 
